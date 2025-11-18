@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple 3D Viewer</title>
+    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+    <style>
+        /* --- CSS --- */
+        body {
+            margin: 0; padding: 0;
+            font-family: sans-serif;
+            overflow: hidden;
+            background-color: #f0f2f5;
+        }
+
+        #app-container {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+            position: relative;
+        }
+
+        /* サイドバー */
+        #sidebar {
+            width: 250px;
+            min-width: 250px;
+            background: rgba(255, 255, 255, 0.95);
+            border-right: 1px solid #ddd;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 10;
+            transition: margin-left 0.3s ease; 
+        }
+
+        #sidebar.collapsed {
+            margin-left: -250px;
+        }
+
+        h2 {
+            font-size: 16px; margin-top: 0; color: #333;
+            text-transform: uppercase; letter-spacing: 1px;
+            margin-bottom: 15px;
+        }
+
+        /* モデル切り替えボタン */
+        .model-btn {
+            padding: 12px;
+            border: 1px solid #eee;
+            background: white;
+            cursor: pointer;
+            border-radius: 8px;
+            text-align: left;
+            transition: all 0.2s ease;
+            font-size: 14px; color: #555;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .model-btn:hover { background: #fafafa; border-color: #ccc; }
+        .model-btn.active { background: #333; color: white; border-color: #333; }
+
+        /* 3Dビューワーエリア */
+        #viewer-area {
+            flex-grow: 1;
+            position: relative;
+            background-color: #dcdcdc; /* 初期背景色 */
+            transition: background-color 0.3s ease;
+        }
+
+        model-viewer {
+            width: 100%; height: 100%;
+            --poster-color: transparent;
+        }
+
+        /* 開閉トグルボタン */
+        #toggle-sidebar-btn {
+            position: absolute;
+            top: 15px;
+            left: 265px;
+            z-index: 100;
+            width: 40px; height: 40px;
+            border: none; border-radius: 50%;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; color: #555;
+            transition: left 0.3s ease, background 0.2s;
+        }
+        #toggle-sidebar-btn:hover { background: #f0f0f0; }
+        #app-container.menu-closed #toggle-sidebar-btn { left: 15px; }
+
+        /* カラーパレット */
+        .color-swatch {
+            width: 30px; height: 30px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .color-swatch:hover { transform: scale(1.1); }
+        .color-swatch:active { transform: scale(0.95); }
+
+    </style>
+</head>
+<body>
+
+<div id="app-container">
+    <div id="sidebar">
+        <h2>3D閲覧</h2>
+        <div id="button-container">
+            </div>
+
+        <div style="margin-top: auto; padding-top: 20px; border-top: 1px solid #eee;">
+            <h3 style="font-size: 14px; color: #666; margin: 0 0 10px;">Background</h3>
+            <div id="color-palette" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button class="color-swatch" style="background: #dcdcdc;" onclick="changeBg('#dcdcdc')" title="Gray"></button>
+                <button class="color-swatch" style="background: #ffffff;" onclick="changeBg('#ffffff')" title="White"></button>
+                <button class="color-swatch" style="background: #1a1a1a;" onclick="changeBg('#1a1a1a')" title="Black"></button>
+                <button class="color-swatch" style="background: #b0c4de;" onclick="changeBg('#b0c4de')" title="Blue"></button>
+                <button class="color-swatch" style="background: #f5e6ea;" onclick="changeBg('#f5e6ea')" title="Pink"></button>
+            </div>
+        </div>
+        <br>
+        <small>Made by LycorisMint</small>
+    </div>
+
+    <button id="toggle-sidebar-btn" title="Toggle Menu">◀</button>
+
+    <div id="viewer-area">
+        <model-viewer 
+            id="main-viewer"
+            src="" 
+            camera-controls 
+            auto-rotate
+            shadow-intensity="1"
+            environment-image="neutral"
+            ar
+            alt="A 3D model">
+        </model-viewer>
+    </div>
+</div>
+
+<script>
+    /* --- JavaScript --- */
+
+    // ■ ファイルリスト定義
+    const modelList = [
+        { name: "4共11（2024測量）", file: "./assets/411.glb" },
+        { name: "吉田寮食堂（2025ミディアム公演）", file: "./assets/medium.glb" },
+        { name: "西部講堂（2014測量）", file: "./assets/west.glb" } 
+    ];
+
+    const viewer = document.querySelector("#main-viewer");
+    const btnContainer = document.querySelector("#button-container");
+    const sidebar = document.querySelector("#sidebar");
+    const appContainer = document.querySelector("#app-container");
+    const toggleBtn = document.querySelector("#toggle-sidebar-btn");
+
+    // 1. リスト生成
+    function createButtons() {
+        modelList.forEach((model, index) => {
+            const btn = document.createElement("button");
+            btn.className = "model-btn";
+            btn.innerText = model.name;
+            
+            btn.onclick = () => {
+                loadModel(model.file);
+                document.querySelectorAll(".model-btn").forEach(b => b.classList.remove("active"));
+                btn.classList.add("active");
+            };
+            btnContainer.appendChild(btn);
+
+            if (index === 0) btn.click(); 
+        });
+    }
+
+    function loadModel(filePath) {
+        viewer.src = filePath;
+    }
+
+    // 2. メニュー開閉
+    toggleBtn.onclick = () => {
+        sidebar.classList.toggle("collapsed");
+        appContainer.classList.toggle("menu-closed");
+        const isClosed = sidebar.classList.contains("collapsed");
+        toggleBtn.innerText = isClosed ? "▶" : "◀";
+    };
+
+    // 3. 背景色変更
+    function changeBg(colorCode) {
+        const viewerArea = document.getElementById('viewer-area');
+        viewerArea.style.backgroundColor = colorCode;
+    }
+
+    // JavaScript側からも関数を呼べるようにwindowに登録（念のため）
+    window.changeBg = changeBg;
+
+    // 初期化
+    createButtons();
+
+</script>
+
+</body>
+</html>
